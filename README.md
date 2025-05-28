@@ -1,2 +1,2 @@
-# mathracer
-A live PvP mental math game.
+# Math Racer
+A live player versus player (PvP) mental math game.

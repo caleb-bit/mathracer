@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MathRacer</title>
+    <link rel="stylesheet" href="/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/css/main.css">
+    <script src="/js/bootstrap.min.js"></script>
+</head>
+
+<body>
+    <h1>Math Racer</h1>
+    <h2>Welcome, <%= username %></h2>
+    <ul id='liveUsers'>
+        <% for (let liveUser of users) { %>
+        <li><%= liveUser %></li>
+        <% } %>
+
+    </ul>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        socket.emit('username', "<%= username %>");
+        socket.on('update live users', (users) => {
+            const liveUsers = document.getElementById('liveUsers');
+            liveUsers.innerHTML = "";
+            for(let user of users) {
+                const newLi = document.createElement('LI');
+                newLi.innerText = user;
+                liveUsers.appendChild(newLi);
+            }
+        });
+    </script>
+</body>
+</html>

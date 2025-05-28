@@ -1,0 +1,27 @@
+h1 {
+    width: 100%;
+    text-align: center
+}
+
+.center {
+    margin-left: auto;
+    margin-right: auto;
+    width: fit-content;
+}
+
+label {
+    width:  100px;
+    margin: auto;
+}
+
+.input-item{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
