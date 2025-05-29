@@ -1,6 +1,8 @@
+require('dotenv').config()
 const express = require('express');
 const path = require('path');
 const mongoose = require('mongoose');
+const session = require('express-session');
 const { createServer } = require('node:http');
 const { Server } = require('socket.io');
 const User = require('./models/user');
@@ -15,6 +17,14 @@ app.set('view engine', 'ejs');
 app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+
+const sessionMiddleware = session({
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false
+});
+
+app.use(sessionMiddleware);
 
 mongoose.connect('mongodb://localhost:27017/mathracer')
     .then(() => {
@@ -47,11 +57,26 @@ io.on('connection', (socket) => {
     });
 });
 
-app.post('/login', (req, res) => {
+
+app.get('/main', (req, res) => {
+    const user = req.session.user;
+    if (user) {
+        res.render('main', { username: user.username, users: userOfSocket.values() });
+    } else {
+        res.redirect('/');
+    }
+})
+
+function addUserToSession(req, username) {
+    req.session.user = { username };
+}
+
+const verifyPassword = (req, res, next) => {
     const { username, password, rememberMe } = req.body;
     User.findOne({ username, password }).then(data => {
         if (data != null) {
-            res.render('main', { username, password, users: userOfSocket.values() });
+            addUserToSession(req, username);
+            next();
         } else {
             if (rememberMe != undefined) {
                 res.redirect('/?loginFailed=true&rememberMe=true');
@@ -60,23 +85,31 @@ app.post('/login', (req, res) => {
             }
         }
     });
+};
+
+app.post('/login', verifyPassword, (_, res) => {
+    res.redirect('/main');
 });
 
 app.post('/register', (req, res) => {
-    const { registerUsername, registerPassword, registerRepeatPassword } = req.body;
-    if (registerPassword !== registerRepeatPassword) {
+    const { registerUsername: username,
+        registerPassword: password,
+        registerRepeatPassword: repeatPassword } = req.body;
+    if (password !== repeatPassword) {
         res.redirect('/?login=false&pwNoMatch=true');
     } else {
-        User.findOne({ username: registerUsername }).then(data => {
+        User.findOne({ username }).then(data => {
             if (data != null) {
                 res.redirect('/?login=false&usernameTaken=true');
             } else {
-                User.insertOne({ username: registerUsername, password: registerPassword });
-                res.render('main', { username: registerUsername, password: registerPassword, users: userOfSocket.values() });
+                User.insertOne({ username, password });
+                addUserToSession(req, username);
+                res.redirect('/main');
             }
         });
     }
 });
+
 server.listen(3000, () => {
     console.log('Listening on 3000');
 });
