@@ -8,7 +8,7 @@ mongoose.connect('mongodb://localhost:27017/mathracer')
         console.log(err);
     });
 
-const admin = new User({ username: 'admin', password: 'admin' });
+const admin = new User({ username: 'admin', password: 'admin', rating: 1000 });
 User.deleteMany({}).then(_ => {
     admin.save();
 })

@@ -65,7 +65,6 @@ function removeFromArr(arr, value) {
 io.on('connection', (socket) => {
     console.log('A user connected.');
     const socketId = socket.id;
-    console.log('id: ' + socketId);
     socket.on('username', (username) => {
         userOfSocket.set(socketId, username);
         socketOfUser.set(username, socketId);
@@ -98,21 +97,22 @@ io.on('connection', (socket) => {
 app.get('/main', (req, res) => {
     const user = req.session.user;
     if (user) {
-        res.render('main', { username: user.username, users: userOfSocket.values() });
+        res.render('main', { username: user.username, rating: user.rating});
     } else {
         res.redirect('/');
     }
 })
 
-function addUserToSession(req, username) {
-    req.session.user = { username };
+function addUserToSession(req, data) {
+    req.session.user = { username: data.username , rating: data.rating };
 }
 
 const verifyPassword = (req, res, next) => {
     const { username, password, rememberMe } = req.body;
     User.findOne({ username, password }).then(data => {
         if (data != null) {
-            addUserToSession(req, username);
+            console.log('data: ' + data);
+            addUserToSession(req, data);
             next();
         } else {
             if (rememberMe != undefined) {
@@ -139,8 +139,9 @@ app.post('/register', (req, res) => {
             if (data != null) {
                 res.redirect('/?login=false&usernameTaken=true');
             } else {
-                User.insertOne({ username, password });
-                addUserToSession(req, username);
+                const newData ={username, password, rating: 1000} 
+                User.insertOne(newData);
+                addUserToSession(req, newData);
                 res.redirect('/main');
             }
         });
