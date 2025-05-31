@@ -12,25 +12,55 @@
 
 <body>
     <h1>Math Racer</h1>
-    <h2>Welcome, <%= username %>
-    </h2>
-    <div class="center">
-        <form action="join match"><button type="button" class="btn btn-primary">Join Match</button></form>
-
+    <div id="lobby">
+        <h2>Welcome, <%= username %>
+        </h2>
+        <div class="center">
+            <button id="joinMatchBtn" type="button" class="btn btn-outline-light">Join Public
+                Match</button>
+        </div>
+        <div id="stats" class=" w-25 mx-auto" style="margin-top: 30px;">
+            <h3>Your Stats</h3>
+            <p>Rating: 1000</p>
+            <!-- <p>Win Rate: 0/0 (0%)</p> -->
+            <!-- <p>Record: 120</p> -->
+        </div>
     </div>
+
+    <div id="waiting" style="display: none;">
+        <h2>Waiting for players...</h2>
+    </div>
+
+    <div id="match" style="display: none;">
+        <h2 id="gameTitle"></h2>
+    </div>
+
+
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
         socket.emit('username', "<%= username %>");
-        socket.on('update live users', (users) => {
-            const liveUsers = document.getElementById('liveUsers');
-            liveUsers.innerHTML = "";
-            for (let user of users) {
-                const newLi = document.createElement('LI');
-                newLi.innerText = user;
-                liveUsers.appendChild(newLi);
-            }
-        });
+
+        const joinMatchBtn = document.getElementById('joinMatchBtn');
+        joinMatchBtn.addEventListener('click', (event) => {
+            socket.emit('joinMatch');
+        })
+
+        const waiting = document.getElementById('waiting');
+        const lobby = document.getElementById('lobby');
+        const match = document.getElementById('match');
+        const title = document.getElementById('gameTitle');
+
+        socket.on('waiting', () => {
+            waiting.style.display = 'block';
+            lobby.style.display = 'none';
+        })
+        socket.on('inGame', ({ user1, user2 }) => {
+            waiting.style.display = 'none';
+            lobby.style.display = 'none';
+            title.innerText = `${user1} vs. ${user2}`;
+            match.style.display = 'block';
+        })
     </script>
 </body>
 

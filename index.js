@@ -10,7 +10,17 @@ const User = require('./models/user');
 const app = express();
 const server = createServer(app);
 const io = new Server(server);
+
+// stores username associated with socket
 const userOfSocket = new Map();
+const socketOfUser = new Map();
+
+
+// users waiting for a match
+const usersWaiting = [];
+
+// users in mtach
+const usersInMatch = [];
 
 app.set('views', path.join(__dirname, '/views'));
 app.set('view engine', 'ejs');
@@ -44,19 +54,46 @@ app.get('/', (req, res) => {
     });
 });
 
+io.engine.use(sessionMiddleware);
+
+function removeFromArr(arr, value) {
+    const idx = arr.indexOf(value);
+    if (idx == -1) return;
+    arr.splice(idx, 1);
+}
+
 io.on('connection', (socket) => {
     console.log('A user connected.');
+    const socketId = socket.id;
+    console.log('id: ' + socketId);
     socket.on('username', (username) => {
-        userOfSocket.set(socket, username);
-        io.emit('update live users', Array.from(userOfSocket.values()));
+        userOfSocket.set(socketId, username);
+        socketOfUser.set(username, socketId);
     });
     socket.on('disconnect', () => {
+        const username = userOfSocket.get(socketId);
         console.log('A user disconnected.');
-        userOfSocket.delete(socket);
-        io.emit('update live users', Array.from(userOfSocket.values()));
+        removeFromArr(usersWaiting, username);
+        removeFromArr(usersInMatch, username);
+        socketOfUser.delete(username);
+        userOfSocket.delete(socketId);
     });
+    socket.on('joinMatch', () => {
+        const user1 = userOfSocket.get(socketId);
+        if (usersWaiting.length == 0) {
+            usersWaiting.push(user1);
+            socket.emit('waiting');
+        } else {
+            const user2 = usersWaiting[0];
+            usersWaiting.shift();
+            usersInMatch.push(user1);
+            usersInMatch.push(user2);
+            socket.emit('inGame', { user1, user2 });
+            console.log(socketOfUser.get(user2));
+            io.to(socketOfUser.get(user2)).emit('inGame', { user1: user2, user2: user1 });
+        }
+    })
 });
-
 
 app.get('/main', (req, res) => {
     const user = req.session.user;
