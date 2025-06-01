@@ -14,6 +14,10 @@ h2 {
     width: fit-content;
 }
 
+#time {
+    font-size: larger;
+}
+
 @font-face {
     font-family: 'Anta';
     src: url('/fonts/Anta-Regular.ttf') format('truetype');

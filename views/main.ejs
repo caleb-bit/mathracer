@@ -21,7 +21,8 @@
         </div>
         <div id="stats" class=" w-25 mx-auto" style="margin-top: 30px;">
             <h3>Your Stats</h3>
-            <p>Rating: <%= rating %></p>
+            <p>Rating: <%= rating %>
+            </p>
             <!-- <p>Win Rate: 0/0 (0%)</p> -->
             <!-- <p>Record: 120</p> -->
         </div>
@@ -32,7 +33,10 @@
     </div>
 
     <div id="match" style="display: none;">
-        <h2 id="gameTitle"></h2>
+        <div class="center">
+            <h2 id="gameTitle"></h2>
+            <p id="time"></p>
+        </div>
     </div>
 
 
@@ -50,6 +54,8 @@
         const lobby = document.getElementById('lobby');
         const match = document.getElementById('match');
         const title = document.getElementById('gameTitle');
+        const time = document.getElementById('time');
+        console.log(time);
 
         socket.on('waiting', () => {
             waiting.style.display = 'block';
@@ -60,6 +66,9 @@
             lobby.style.display = 'none';
             title.innerText = `${user1} vs. ${user2}`;
             match.style.display = 'block';
+        })
+        socket.on('countdown', (t) => {
+            time.innerText = `Starting Match in: ${t}`;
         })
     </script>
 </body>

@@ -12,7 +12,8 @@ const server = createServer(app);
 const io = new Server(server);
 
 // stores username associated with socket
-const userOfSocket = new Map();
+const userOfSocketId = new Map();
+const socketIdOfUser = new Map();
 const socketOfUser = new Map();
 
 
@@ -66,30 +67,43 @@ io.on('connection', (socket) => {
     console.log('A user connected.');
     const socketId = socket.id;
     socket.on('username', (username) => {
-        userOfSocket.set(socketId, username);
-        socketOfUser.set(username, socketId);
+        userOfSocketId.set(socketId, username);
+        socketIdOfUser.set(username, socketId);
+        socketOfUser.set(username, socket);
     });
     socket.on('disconnect', () => {
-        const username = userOfSocket.get(socketId);
+        const username = userOfSocketId.get(socketId);
         console.log('A user disconnected.');
         removeFromArr(usersWaiting, username);
         removeFromArr(usersInMatch, username);
+        socketIdOfUser.delete(username);
+        userOfSocketId.delete(socketId);
         socketOfUser.delete(username);
-        userOfSocket.delete(socketId);
     });
     socket.on('joinMatch', () => {
-        const user1 = userOfSocket.get(socketId);
+        const user1 = userOfSocketId.get(socketId);
         if (usersWaiting.length == 0) {
             usersWaiting.push(user1);
             socket.emit('waiting');
         } else {
             const user2 = usersWaiting[0];
+            const socket2 = socketOfUser.get(user2);
             usersWaiting.shift();
             usersInMatch.push(user1);
             usersInMatch.push(user2);
+            const roomNum = usersInMatch.length / 2;
+            const room = `room ${roomNum}`;
+            socket.join(room);
+            socket2.join(room);
             socket.emit('inGame', { user1, user2 });
-            console.log(socketOfUser.get(user2));
-            io.to(socketOfUser.get(user2)).emit('inGame', { user1: user2, user2: user1 });
+            io.to(socketIdOfUser.get(user2)).emit('inGame', { user1: user2, user2: user1 });
+            let time = 5;
+            io.to(room).emit('countdown', time);
+            const intervalId = setInterval(() => {
+                time--;
+                io.to(room).emit('countdown', time);
+                if (time == 0) clearInterval(intervalId);
+            }, 1000);
         }
     })
 });
@@ -97,21 +111,20 @@ io.on('connection', (socket) => {
 app.get('/main', (req, res) => {
     const user = req.session.user;
     if (user) {
-        res.render('main', { username: user.username, rating: user.rating});
+        res.render('main', { username: user.username, rating: user.rating });
     } else {
         res.redirect('/');
     }
 })
 
 function addUserToSession(req, data) {
-    req.session.user = { username: data.username , rating: data.rating };
+    req.session.user = { username: data.username, rating: data.rating };
 }
 
 const verifyPassword = (req, res, next) => {
     const { username, password, rememberMe } = req.body;
     User.findOne({ username, password }).then(data => {
         if (data != null) {
-            console.log('data: ' + data);
             addUserToSession(req, data);
             next();
         } else {
@@ -139,7 +152,7 @@ app.post('/register', (req, res) => {
             if (data != null) {
                 res.redirect('/?login=false&usernameTaken=true');
             } else {
-                const newData ={username, password, rating: 1000} 
+                const newData = { username, password, rating: 1000 }
                 User.insertOne(newData);
                 addUserToSession(req, newData);
                 res.redirect('/main');
