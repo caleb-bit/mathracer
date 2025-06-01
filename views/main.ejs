@@ -60,15 +60,18 @@
         socket.on('waiting', () => {
             waiting.style.display = 'block';
             lobby.style.display = 'none';
-        })
+        });
         socket.on('inGame', ({ user1, user2 }) => {
             waiting.style.display = 'none';
             lobby.style.display = 'none';
             title.innerText = `${user1} vs. ${user2}`;
             match.style.display = 'block';
-        })
+        });
         socket.on('countdown', (t) => {
             time.innerText = `Starting Match in: ${t}`;
+        });
+        socket.on('timeLeft', (t) => {
+            time.innerText = `${t}`;
         })
     </script>
 </body>

@@ -45,14 +45,17 @@ mongoose.connect('mongodb://localhost:27017/mathracer')
     });
 
 app.get('/', (req, res) => {
-    const { login, loginFailed, rememberMe, pwNoMatch, usernameTaken } = req.query;
-    res.render('login', {
-        login: (login != "false"),
-        loginFailed: (loginFailed == "true"),
-        pwNoMatch: (pwNoMatch == "true"),
-        rememberMe: (rememberMe == "true"),
-        usernameTaken: (usernameTaken == "true")
-    });
+    res.render('temp');
+
+    // TODO: uncomment
+    // const { login, loginFailed, rememberMe, pwNoMatch, usernameTaken } = req.query;
+    // res.render('login', {
+    //     login: (login != "false"),
+    //     loginFailed: (loginFailed == "true"),
+    //     pwNoMatch: (pwNoMatch == "true"),
+    //     rememberMe: (rememberMe == "true"),
+    //     usernameTaken: (usernameTaken == "true")
+    // });
 });
 
 io.engine.use(sessionMiddleware);
@@ -99,10 +102,22 @@ io.on('connection', (socket) => {
             io.to(socketIdOfUser.get(user2)).emit('inGame', { user1: user2, user2: user1 });
             let time = 5;
             io.to(room).emit('countdown', time);
+            let countdown = true;
             const intervalId = setInterval(() => {
-                time--;
-                io.to(room).emit('countdown', time);
-                if (time == 0) clearInterval(intervalId);
+                if (countdown) {
+                    time--;
+                    io.to(room).emit('countdown', time);
+                    if (time == 0) {
+                        countdown = false;
+                        time = 120;
+                    }
+                } else {
+                    if (time == 0) clearInterval(intervalId);
+                    else {
+                        io.to(room).emit('timeLeft', time);
+                        time--;
+                    }
+                }
             }, 1000);
         }
     })
