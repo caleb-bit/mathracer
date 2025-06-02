@@ -88,7 +88,9 @@ io.on('connection', (socket) => {
         userOfSocketId.delete(socketId);
         socketOfUser.delete(username);
         if (intervalId != null) {
+            console.log('not null!')
             clearInterval(intervalId);
+            intervalId = null;
         }
     });
     socket.on('joinMatch', () => {
