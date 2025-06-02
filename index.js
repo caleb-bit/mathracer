@@ -45,14 +45,15 @@ mongoose.connect('mongodb://localhost:27017/mathracer')
     });
 
 app.get('/', (req, res) => {
-    const { login, loginFailed, rememberMe, pwNoMatch, usernameTaken } = req.query;
-    res.render('login', {
-        login: (login != "false"),
-        loginFailed: (loginFailed == "true"),
-        pwNoMatch: (pwNoMatch == "true"),
-        rememberMe: (rememberMe == "true"),
-        usernameTaken: (usernameTaken == "true")
-    });
+    res.render('temp');
+    // const { login, loginFailed, rememberMe, pwNoMatch, usernameTaken } = req.query;
+    // res.render('login', {
+    //     login: (login != "false"),
+    //     loginFailed: (loginFailed == "true"),
+    //     pwNoMatch: (pwNoMatch == "true"),
+    //     rememberMe: (rememberMe == "true"),
+    //     usernameTaken: (usernameTaken == "true")
+    // });
 });
 
 io.engine.use(sessionMiddleware);
@@ -88,7 +89,6 @@ io.on('connection', (socket) => {
         userOfSocketId.delete(socketId);
         socketOfUser.delete(username);
         if (intervalId != null) {
-            console.log('not null!')
             clearInterval(intervalId);
             intervalId = null;
         }

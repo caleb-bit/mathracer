@@ -42,7 +42,7 @@
                 <p id="user1"></p>
                 <p>Points: 0</p>
                 <h2 id="question1"></h2>
-                <input type="text">
+                <input id="inputText" type="text" disabled>
             </div>
 
             <div class="playerPanel col border-start border-1 border-light">
@@ -78,8 +78,6 @@
         const match = document.getElementById('match');
         const title = document.getElementById('gameTitle');
         const time = document.getElementById('time');
-        const user1Label = document.getElementById('user1');
-        const user2Label = document.getElementById('user2');
         const opponentDisconnected = document.getElementById('opponentDisconnected');
         const returnBtn = document.getElementById('returnBtn');
 
@@ -93,14 +91,17 @@
             lobby.style.display = 'none';
             title.innerText = `${user1} vs. ${user2}`;
             match.style.display = 'block';
-            user1Label.innerText = user1;
-            user2Label.innerText = user2;
+            document.getElementById('user1').innerText = user1;
+            document.getElementById('user2').innerText = user2;
         });
         socket.on('countdown', (t) => {
             time.innerText = `Starting Match in: ${t}`;
         });
         socket.on('timeLeft', (t) => {
+            document.getElementById('inputText').disabled = false;
+            document.getElementById('inputText').focus();
             time.innerText = `${t}`;
+
         })
         socket.on('opponentDisconnected', () => {
             match.style.display = 'none';

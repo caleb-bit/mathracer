@@ -42,17 +42,25 @@ body {
 }
 
 #gamePanel {
-    background-color:rgb(40,40,40);
+    background-color: rgb(40, 40, 40);
     flex: 1;
     width: 75%;
     margin: auto;
     padding: 20px;
 }
 
-.playerPanel {  
+.playerPanel {
     text-align: center;
 }
 
 p {
     font-size: medium;
+}
+
+#inputText {
+    border: 0;
+    box-shadow: 0;
+    outline: none;
+    padding:0;
+    text-align: center;
 }
