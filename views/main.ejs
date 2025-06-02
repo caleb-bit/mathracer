@@ -37,8 +37,31 @@
             <h2 id="gameTitle"></h2>
             <p id="time"></p>
         </div>
+        <div id="gamePanel" class="row border boder-1 border-light">
+            <div class="playerPanel col border-end border-1 border-light">
+                <p id="user1"></p>
+                <p>Points: 0</p>
+                <h2 id="question1"></h2>
+                <input type="text">
+            </div>
+
+            <div class="playerPanel col border-start border-1 border-light">
+                <p id="user2"></p>
+                <p>Points: 0</p>
+                <h2 id="question2">
+                    <h2>
+            </div>
+        </div>
+
     </div>
 
+    <div id="opponentDisconnected" style="display: none;">
+        <h2>Opponent Disconnected.</h2>
+        <div class="center">
+            <p>You win automatically!</p>
+            <button id="returnBtn">Return</button>
+        </div>
+    </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
@@ -55,23 +78,37 @@
         const match = document.getElementById('match');
         const title = document.getElementById('gameTitle');
         const time = document.getElementById('time');
-        console.log(time);
+        const user1Label = document.getElementById('user1');
+        const user2Label = document.getElementById('user2');
+        const opponentDisconnected = document.getElementById('opponentDisconnected');
+        const returnBtn = document.getElementById('returnBtn');
 
         socket.on('waiting', () => {
             waiting.style.display = 'block';
             lobby.style.display = 'none';
         });
+
         socket.on('inGame', ({ user1, user2 }) => {
             waiting.style.display = 'none';
             lobby.style.display = 'none';
             title.innerText = `${user1} vs. ${user2}`;
             match.style.display = 'block';
+            user1Label.innerText = user1;
+            user2Label.innerText = user2;
         });
         socket.on('countdown', (t) => {
             time.innerText = `Starting Match in: ${t}`;
         });
         socket.on('timeLeft', (t) => {
             time.innerText = `${t}`;
+        })
+        socket.on('opponentDisconnected', () => {
+            match.style.display = 'none';
+            opponentDisconnected.style.display = 'block';
+        })
+        returnBtn.addEventListener('click', (event) => {
+            opponentDisconnected.style.display = 'none';
+            lobby.style.display = 'block';
         })
     </script>
 </body>

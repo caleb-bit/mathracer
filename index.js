@@ -20,8 +20,8 @@ const socketOfUser = new Map();
 // users waiting for a match
 const usersWaiting = [];
 
-// users in mtach
-const usersInMatch = [];
+// matches each user in a match to opponent
+const usersInMatch = new Map();
 
 app.set('views', path.join(__dirname, '/views'));
 app.set('view engine', 'ejs');
@@ -45,17 +45,14 @@ mongoose.connect('mongodb://localhost:27017/mathracer')
     });
 
 app.get('/', (req, res) => {
-    res.render('temp');
-
-    // TODO: uncomment
-    // const { login, loginFailed, rememberMe, pwNoMatch, usernameTaken } = req.query;
-    // res.render('login', {
-    //     login: (login != "false"),
-    //     loginFailed: (loginFailed == "true"),
-    //     pwNoMatch: (pwNoMatch == "true"),
-    //     rememberMe: (rememberMe == "true"),
-    //     usernameTaken: (usernameTaken == "true")
-    // });
+    const { login, loginFailed, rememberMe, pwNoMatch, usernameTaken } = req.query;
+    res.render('login', {
+        login: (login != "false"),
+        loginFailed: (loginFailed == "true"),
+        pwNoMatch: (pwNoMatch == "true"),
+        rememberMe: (rememberMe == "true"),
+        usernameTaken: (usernameTaken == "true")
+    });
 });
 
 io.engine.use(sessionMiddleware);
@@ -69,6 +66,7 @@ function removeFromArr(arr, value) {
 io.on('connection', (socket) => {
     console.log('A user connected.');
     const socketId = socket.id;
+    let intervalId = null;
     socket.on('username', (username) => {
         userOfSocketId.set(socketId, username);
         socketIdOfUser.set(username, socketId);
@@ -77,11 +75,21 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         const username = userOfSocketId.get(socketId);
         console.log('A user disconnected.');
-        removeFromArr(usersWaiting, username);
-        removeFromArr(usersInMatch, username);
+        if (usersInMatch.has(username)) {
+            // in match
+            const opponent = usersInMatch.get(username);
+            usersInMatch.delete(username);
+            usersInMatch.delete(opponent);
+            io.to(socketIdOfUser.get(opponent)).emit('opponentDisconnected');
+        } else {
+            removeFromArr(usersWaiting, username);
+        }
         socketIdOfUser.delete(username);
         userOfSocketId.delete(socketId);
         socketOfUser.delete(username);
+        if (intervalId != null) {
+            clearInterval(intervalId);
+        }
     });
     socket.on('joinMatch', () => {
         const user1 = userOfSocketId.get(socketId);
@@ -92,9 +100,9 @@ io.on('connection', (socket) => {
             const user2 = usersWaiting[0];
             const socket2 = socketOfUser.get(user2);
             usersWaiting.shift();
-            usersInMatch.push(user1);
-            usersInMatch.push(user2);
-            const roomNum = usersInMatch.length / 2;
+            usersInMatch.set(user1,user2);
+            usersInMatch.set(user2,user1);
+            const roomNum = usersInMatch.size / 2;
             const room = `room ${roomNum}`;
             socket.join(room);
             socket2.join(room);
@@ -103,7 +111,7 @@ io.on('connection', (socket) => {
             let time = 5;
             io.to(room).emit('countdown', time);
             let countdown = true;
-            const intervalId = setInterval(() => {
+            intervalId = setInterval(() => {
                 if (countdown) {
                     time--;
                     io.to(room).emit('countdown', time);
