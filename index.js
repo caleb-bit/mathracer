@@ -17,16 +17,19 @@ const userOfSocketId = new Map();
 const socketIdOfUser = new Map();
 const socketOfUser = new Map();
 const roomOfSocket = new Map();
-
+const kFactor = 20;
 
 // users waiting for a match
 const usersWaiting = [];
 
 // matches each user in a match to opponent
-const usersInMatch = new Map();
+const opponentOfPlayer = new Map();
 
 // matches each room to its array of problems
 const problemDataOfRoom = new Map();
+
+// maps socket to current score in match
+const scoreOfSocket = new Map();
 
 app.set('views', path.join(__dirname, '/views'));
 app.set('view engine', 'ejs');
@@ -50,7 +53,6 @@ mongoose.connect('mongodb://localhost:27017/mathracer')
     });
 
 app.get('/', (req, res) => {
-    // res.render('temp');
     const { login, loginFailed, rememberMe, pwNoMatch, usernameTaken } = req.query;
     res.render('login', {
         login: (login != "false"),
@@ -112,6 +114,28 @@ function sendProblem(socket, room, problem) {
     socket.to(room).emit('newProblemThem', problem);
 }
 
+function newRating(currRating, opponentRating, won) {
+    console.log("curr: " + currRating);
+    console.log("opponent: " + opponentRating);
+    let score = 0;
+    if (won) score = 1;
+    return Math.round(currRating + kFactor * (score - 1.0 / (1.0 + 10.0 ** ((opponentRating - currRating) / 400.0))));
+}
+
+async function getRating(username) {
+    const user = await User.findOne({ username: username });
+    return user.rating;
+}
+
+async function updateRatings(winner, loser) {
+    const winnerRating = await getRating(winner);
+    const loserRating = await getRating(loser);
+    await Promise.all([
+        User.updateOne({ username: winner }, { rating: newRating(winnerRating, loserRating, 1) }).exec(),
+        User.updateOne({ username: loser }, { rating: newRating(loserRating, winnerRating, 0) })
+    ]);
+}
+
 io.on('connection', (socket) => {
     console.log('A user connected.');
     const socketId = socket.id;
@@ -122,15 +146,17 @@ io.on('connection', (socket) => {
         socketIdOfUser.set(username, socketId);
         socketOfUser.set(username, socket);
     });
-    socket.on('disconnect', () => {
+    socket.on('disconnect', async () => {
         const username = userOfSocketId.get(socketId);
         console.log('A user disconnected.');
-        if (usersInMatch.has(username)) {
+        if (opponentOfPlayer.has(username)) {
             // in match
-            const opponent = usersInMatch.get(username);
-            usersInMatch.delete(username);
-            usersInMatch.delete(opponent);
-            io.to(socketIdOfUser.get(opponent)).emit('opponentDisconnected');
+            const opponent = opponentOfPlayer.get(username);
+            opponentOfPlayer.delete(username);
+            opponentOfPlayer.delete(opponent);
+            await updateRatings(opponent, username);
+            const newRating = await getRating(opponent);
+            io.to(socketIdOfUser.get(opponent)).emit('opponentDisconnected', newRating);
         } else {
             removeFromArr(usersWaiting, username);
         }
@@ -144,16 +170,18 @@ io.on('connection', (socket) => {
     });
     socket.on('joinMatch', () => {
         const user1 = userOfSocketId.get(socketId);
+        scoreOfSocket.set(socket, 0);
         if (usersWaiting.length == 0) {
             usersWaiting.push(user1);
             socket.emit('waiting');
         } else {
             const user2 = usersWaiting[0];
             const socket2 = socketOfUser.get(user2);
+            scoreOfSocket.set(socket2, 0);
             usersWaiting.shift();
-            usersInMatch.set(user1, user2);
-            usersInMatch.set(user2, user1);
-            room = `room ${usersInMatch.size / 2}`;
+            opponentOfPlayer.set(user1, user2);
+            opponentOfPlayer.set(user2, user1);
+            room = `room ${opponentOfPlayer.size / 2}`;
             socket.join(room);
             socket2.join(room);
             roomOfSocket.set(socket, room);
@@ -178,7 +206,17 @@ io.on('connection', (socket) => {
                     }
                 } else {
                     // in game
-                    if (time == 0) clearInterval(intervalId);
+                    if (time == 0) {
+                        clearInterval(intervalId);
+                        io.to(room).emit('disableInput');
+                        io.to(room).emit('timeLeft', time);
+                        const myScore = scoreOfSocket.get(socket);
+                        const theirScore = scoreOfSocket.get(socket2);
+                        if (myScore == theirScore) {
+                            // draw
+
+                        }
+                    }
                     else {
                         io.to(room).emit('timeLeft', time);
                         time--;
@@ -188,6 +226,7 @@ io.on('connection', (socket) => {
         }
     });
     socket.on('problemSolved', (problem) => {
+        scoreOfSocket.set(socket, scoreOfSocket.get(socket) + 1);
         if (room == null) {
             room = roomOfSocket.get(socket);
             if (room == null) return;
@@ -218,19 +257,21 @@ io.on('connection', (socket) => {
     })
 });
 
-app.get('/main', (req, res) => {
+app.get('/main', async (req, res) => {
     const user = req.session.user;
     if (user) {
-        res.render('main', { username: user.username, rating: user.rating });
+        const rating = await getRating(user.username);
+        res.render('main', { username: user.username, rating });
     } else {
         res.redirect('/');
     }
 })
 
 function addUserToSession(req, data) {
-    req.session.user = { username: data.username, rating: data.rating };
+    req.session.user = { username: data.username };
 }
 
+// password verification middleware
 const verifyPassword = (req, res, next) => {
     const { username, password, rememberMe } = req.body;
     User.findOne({ username, password }).then(data => {

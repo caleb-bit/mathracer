@@ -59,8 +59,12 @@
         <h2>Opponent Disconnected.</h2>
         <div class="center">
             <p>You win automatically!</p>
-            <button id="returnBtn">Return</button>
+            <p id="newRating"></p>
+            <form action="/main">
+                <button type="submit" id="returnBtn">Return</button>
+            </form>
         </div>
+
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
@@ -68,7 +72,7 @@
         const socket = io();
         socket.emit('username', "<%= username %>");
 
-        const getElem = (id) => document.getElementById(id); 
+        const getElem = (id) => document.getElementById(id);
         const joinMatchBtn = getElem('joinMatchBtn');
         joinMatchBtn.addEventListener('click', (event) => {
             socket.emit('joinMatch');
@@ -85,6 +89,8 @@
         const q1 = document.getElementById('question1');
         const q2 = document.getElementById('question2');
         const input = getElem('inputText');
+        const newRatingDisconnected = getElem('newRating');
+
         let currProblem = null;
         socket.on('waiting', () => {
             waiting.style.display = 'block';
@@ -115,20 +121,26 @@
         socket.on('newProblemThem', (problem) => {
             q2.innerText = problem.statement;
         })
-        socket.on('opponentDisconnected', () => {
+        socket.on('opponentDisconnected', (newRating) => {
             match.style.display = 'none';
+            newRatingDisconnected.innerText = `New Rating: ${newRating}`;
             opponentDisconnected.style.display = 'block';
+
         })
         returnBtn.addEventListener('click', (event) => {
             opponentDisconnected.style.display = 'none';
             lobby.style.display = 'block';
+
         })
         input.addEventListener('input', (_) => {
-            if(input.value == currProblem.answer) {
-                socket.emit('problemSolved',currProblem);
+            if (input.value == currProblem.answer) {
+                socket.emit('problemSolved', currProblem);
             }
         })
-                
+        socket.on('disableInput', () => {
+            input.disabled = true;
+        })
+
     </script>
 </body>
 
