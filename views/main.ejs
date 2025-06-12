@@ -68,19 +68,24 @@
         const socket = io();
         socket.emit('username', "<%= username %>");
 
-        const joinMatchBtn = document.getElementById('joinMatchBtn');
+        const getElem = (id) => document.getElementById(id); 
+        const joinMatchBtn = getElem('joinMatchBtn');
         joinMatchBtn.addEventListener('click', (event) => {
             socket.emit('joinMatch');
         })
 
-        const waiting = document.getElementById('waiting');
-        const lobby = document.getElementById('lobby');
-        const match = document.getElementById('match');
-        const title = document.getElementById('gameTitle');
-        const time = document.getElementById('time');
-        const opponentDisconnected = document.getElementById('opponentDisconnected');
-        const returnBtn = document.getElementById('returnBtn');
 
+        const waiting = getElem('waiting');
+        const lobby = getElem('lobby');
+        const match = getElem('match');
+        const title = getElem('gameTitle');
+        const time = getElem('time');
+        const opponentDisconnected = getElem('opponentDisconnected');
+        const returnBtn = getElem('returnBtn');
+        const q1 = document.getElementById('question1');
+        const q2 = document.getElementById('question2');
+        const input = getElem('inputText');
+        let currProblem = null;
         socket.on('waiting', () => {
             waiting.style.display = 'block';
             lobby.style.display = 'none';
@@ -98,10 +103,17 @@
             time.innerText = `Starting Match in: ${t}`;
         });
         socket.on('timeLeft', (t) => {
-            document.getElementById('inputText').disabled = false;
-            document.getElementById('inputText').focus();
             time.innerText = `${t}`;
-
+        })
+        socket.on('newProblemMe', (problem) => {
+            input.disabled = false;
+            input.focus();
+            input.value = "";
+            currProblem = problem;
+            q1.innerText = problem.statement;
+        })
+        socket.on('newProblemThem', (problem) => {
+            q2.innerText = problem.statement;
         })
         socket.on('opponentDisconnected', () => {
             match.style.display = 'none';
@@ -111,6 +123,12 @@
             opponentDisconnected.style.display = 'none';
             lobby.style.display = 'block';
         })
+        input.addEventListener('input', (_) => {
+            if(input.value == currProblem.answer) {
+                socket.emit('problemSolved',currProblem);
+            }
+        })
+                
     </script>
 </body>
 
