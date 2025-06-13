@@ -40,31 +40,29 @@
         <div id="gamePanel" class="row border boder-1 border-light">
             <div class="playerPanel col border-end border-1 border-light">
                 <p id="user1"></p>
-                <p>Points: 0</p>
+                <p id="score1">0</p>
                 <h2 id="question1"></h2>
                 <input id="inputText" type="text" disabled>
             </div>
 
             <div class="playerPanel col border-start border-1 border-light">
                 <p id="user2"></p>
-                <p>Points: 0</p>
-                <h2 id="question2">
-                    <h2>
+                <p id="score2">0</p>
+                <h2 id="question2"></h2>
             </div>
         </div>
 
     </div>
 
-    <div id="opponentDisconnected" style="display: none;">
-        <h2>Opponent Disconnected.</h2>
+    <div id="gameover" style="display: none;">
+        <h2 id="resultText"></h2>
         <div class="center">
-            <p>You win automatically!</p>
+            <p id="oldRating"></p>
             <p id="newRating"></p>
             <form action="/main">
                 <button type="submit" id="returnBtn">Return</button>
             </form>
         </div>
-
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
@@ -84,12 +82,16 @@
         const match = getElem('match');
         const title = getElem('gameTitle');
         const time = getElem('time');
-        const opponentDisconnected = getElem('opponentDisconnected');
+        const gameover = getElem('gameover');
         const returnBtn = getElem('returnBtn');
-        const q1 = document.getElementById('question1');
-        const q2 = document.getElementById('question2');
+        const q1 = getElem('question1');
+        const q2 = getElem('question2');
         const input = getElem('inputText');
-        const newRatingDisconnected = getElem('newRating');
+        const newRatingText = getElem('newRating');
+        const oldRatingText = getElem('oldRating');
+        const score1 = getElem('score1');
+        const score2 = getElem('score2');
+        const resultText = getElem('resultText');
 
         let currProblem = null;
         socket.on('waiting', () => {
@@ -121,17 +123,33 @@
         socket.on('newProblemThem', (problem) => {
             q2.innerText = problem.statement;
         })
-        socket.on('opponentDisconnected', (newRating) => {
-            match.style.display = 'none';
-            newRatingDisconnected.innerText = `New Rating: ${newRating}`;
-            opponentDisconnected.style.display = 'block';
+        socket.on('updateMyScore', score => {
+            score1.innerText = score;
+        })
+        socket.on('updateTheirScore', score => {
+            score2.innerText = score;
+        })
 
+        function displayResult(oldRating, newRating, text) {
+            match.style.display = 'none';
+            oldRatingText.innerText = `Old Rating: ${oldRating}`;
+            newRatingText.innerText = `New Rating: ${newRating}`;
+            resultText.innerText = text;
+            gameover.style.display = 'block';
+        }
+        socket.on('opponentDisconnected', ({ oldRating, newRating }) => {
+            displayResult(oldRating, newRating, 'Opponent disconnected.');
+        });
+        socket.on('victory', ({oldRating, newRating}) => {
+            displayResult(oldRating, newRating, 'VICTORY');
+        })
+        socket.on('loss', ({oldRating, newRating}) => {
+            displayResult(oldRating, newRating, 'LOSS');
         })
         returnBtn.addEventListener('click', (event) => {
             opponentDisconnected.style.display = 'none';
             lobby.style.display = 'block';
-
-        })
+        });
         input.addEventListener('input', (_) => {
             if (input.value == currProblem.answer) {
                 socket.emit('problemSolved', currProblem);
@@ -139,7 +157,8 @@
         })
         socket.on('disableInput', () => {
             input.disabled = true;
-        })
+        });
+
 
     </script>
 </body>

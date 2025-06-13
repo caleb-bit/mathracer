@@ -13,7 +13,7 @@ const server = createServer(app);
 const io = new Server(server);
 
 // stores username associated with socket
-const userOfSocketId = new Map();
+const userOfSocket = new Map();
 const socketIdOfUser = new Map();
 const socketOfUser = new Map();
 const roomOfSocket = new Map();
@@ -110,16 +110,17 @@ function createProblem() {
 }
 
 function sendProblem(socket, room, problem) {
+    const score = scoreOfSocket.get(socket);
     socket.emit('newProblemMe', problem);
+    socket.emit('updateMyScore', score);
+    // emits to opponent only
     socket.to(room).emit('newProblemThem', problem);
+    socket.to(room).emit('updateTheirScore', score);
 }
 
-function newRating(currRating, opponentRating, won) {
-    console.log("curr: " + currRating);
-    console.log("opponent: " + opponentRating);
-    let score = 0;
-    if (won) score = 1;
-    return Math.round(currRating + kFactor * (score - 1.0 / (1.0 + 10.0 ** ((opponentRating - currRating) / 400.0))));
+// score is 0 if lost, 0.5 if tied, 1 if won.
+function newRating(currRating, opponentRating, score) {
+    return currRating + kFactor * (score - 1.0 / (1.0 + 10.0 ** ((opponentRating - currRating) / 400.0)));
 }
 
 async function getRating(username) {
@@ -127,12 +128,20 @@ async function getRating(username) {
     return user.rating;
 }
 
-async function updateRatings(winner, loser) {
-    const winnerRating = await getRating(winner);
-    const loserRating = await getRating(loser);
+const Result = {
+    VICTORY: "victory", TIE: "tie", LOSS: "loss"
+}
+
+// update ratings based on result, where result = 0 means player 2 won, result = 0.5 means tie, and result = ums
+async function updateRatings(player1, player2, result) {
+    const rating1 = await getRating(player1);
+    const rating2 = await getRating(player2);
+    let score = 0;
+    if (result == Result.TIE) score = 0.5;
+    else if (result == Result.VICTORY) score = 1;
     await Promise.all([
-        User.updateOne({ username: winner }, { rating: newRating(winnerRating, loserRating, 1) }).exec(),
-        User.updateOne({ username: loser }, { rating: newRating(loserRating, winnerRating, 0) })
+        User.updateOne({ username: player1 }, { rating: newRating(rating1, rating2, score) }).exec(),
+        User.updateOne({ username: player2 }, { rating: newRating(rating2, rating1, 1.0 - score) }).exec()
     ]);
 }
 
@@ -142,34 +151,12 @@ io.on('connection', (socket) => {
     let intervalId = null;
     let room = null;
     socket.on('username', (username) => {
-        userOfSocketId.set(socketId, username);
+        userOfSocket.set(socket, username);
         socketIdOfUser.set(username, socketId);
         socketOfUser.set(username, socket);
     });
-    socket.on('disconnect', async () => {
-        const username = userOfSocketId.get(socketId);
-        console.log('A user disconnected.');
-        if (opponentOfPlayer.has(username)) {
-            // in match
-            const opponent = opponentOfPlayer.get(username);
-            opponentOfPlayer.delete(username);
-            opponentOfPlayer.delete(opponent);
-            await updateRatings(opponent, username);
-            const newRating = await getRating(opponent);
-            io.to(socketIdOfUser.get(opponent)).emit('opponentDisconnected', newRating);
-        } else {
-            removeFromArr(usersWaiting, username);
-        }
-        socketIdOfUser.delete(username);
-        userOfSocketId.delete(socketId);
-        socketOfUser.delete(username);
-        if (intervalId != null) {
-            clearInterval(intervalId);
-            intervalId = null;
-        }
-    });
-    socket.on('joinMatch', () => {
-        const user1 = userOfSocketId.get(socketId);
+    socket.on('joinMatch', async () => {
+        const user1 = userOfSocket.get(socket);
         scoreOfSocket.set(socket, 0);
         if (usersWaiting.length == 0) {
             usersWaiting.push(user1);
@@ -177,6 +164,8 @@ io.on('connection', (socket) => {
         } else {
             const user2 = usersWaiting[0];
             const socket2 = socketOfUser.get(user2);
+            const oldRating1 = await getRating(user1);
+            const oldRating2 = await getRating(user2);
             scoreOfSocket.set(socket2, 0);
             usersWaiting.shift();
             opponentOfPlayer.set(user1, user2);
@@ -193,14 +182,14 @@ io.on('connection', (socket) => {
             let time = 3;
             io.to(room).emit('countdown', time);
             let countdown = true;
-            intervalId = setInterval(() => {
+            intervalId = setInterval(async () => {
                 if (countdown) {
                     // during countdown
                     time--;
                     io.to(room).emit('countdown', time);
                     if (time == 0) {
                         countdown = false;
-                        time = 120;
+                        time = 120; // todo change to 120
                         io.to(room).emit('newProblemMe', newProblem);
                         io.to(room).emit('newProblemThem', newProblem);
                     }
@@ -212,10 +201,23 @@ io.on('connection', (socket) => {
                         io.to(room).emit('timeLeft', time);
                         const myScore = scoreOfSocket.get(socket);
                         const theirScore = scoreOfSocket.get(socket2);
-                        if (myScore == theirScore) {
-                            // draw
-
-                        }
+                        let result = Result.TIE;
+                        if (myScore > theirScore) result = Result.VICTORY;
+                        else if (theirScore > myScore) result = Result.LOSS;
+                        let result2 = result;
+                        if (result == Result.VICTORY) result2 = Result.LOSS;
+                        else if (result == Result.LOSS) result2 = Result.VICTORY;
+                        await updateRatings(user1, user2, result);
+                        const newRating1 = await getRating(user1);
+                        const newRating2 = await getRating(user2);
+                        socket.emit(result, { oldRating: Math.round(oldRating1), newRating: Math.round(newRating1) });
+                        socket.to(room).emit(result2, { oldRating: Math.round(oldRating2), newRating: Math.round(newRating2) });
+                        roomOfSocket.delete(socket);
+                        roomOfSocket.delete(socket2);
+                        io.socketsLeave(room);
+                        opponentOfPlayer.delete(user1);
+                        opponentOfPlayer.delete(user2);
+                        problemDataOfRoom.delete(room);
                     }
                     else {
                         io.to(room).emit('timeLeft', time);
@@ -254,14 +256,47 @@ io.on('connection', (socket) => {
                 sendProblem(socket, room, problemData[0].problem);
             }
         }
-    })
+    });
+    socket.on('disconnect', async () => {
+        const username = userOfSocket.get(socket);
+        console.log('A user disconnected.');
+        if (opponentOfPlayer.has(username)) {
+            // in match
+            const opponent = opponentOfPlayer.get(username);
+            opponentOfPlayer.delete(username);
+            opponentOfPlayer.delete(opponent);
+            const oldRating = await getRating(opponent);
+            await updateRatings(username, opponent, Result.LOSS);
+            const newRating = await getRating(opponent);
+            io.to(socketIdOfUser.get(opponent)).emit('opponentDisconnected', {
+                newRating: Math.round(newRating),
+                oldRating: Math.round(oldRating)
+            });
+            roomOfSocket.delete(socket);
+            roomOfSocket.delete(socketOfUser.get(opponent));
+            io.socketsLeave(room);
+            opponentOfPlayer.delete(username);
+            opponentOfPlayer.delete(opponent);
+            problemDataOfRoom.delete(room);
+
+        } else {
+            removeFromArr(usersWaiting, username);
+        }
+        socketIdOfUser.delete(username);
+        userOfSocket.delete(socket);
+        socketOfUser.delete(username);
+        if (intervalId != null) {
+            clearInterval(intervalId);
+            intervalId = null;
+        }
+    });
 });
 
 app.get('/main', async (req, res) => {
     const user = req.session.user;
     if (user) {
         const rating = await getRating(user.username);
-        res.render('main', { username: user.username, rating });
+        res.render('main', { username: user.username, rating: Math.round(rating) });
     } else {
         res.redirect('/');
     }

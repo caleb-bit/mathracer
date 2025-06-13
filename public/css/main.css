@@ -11,7 +11,7 @@
 
 h1 {
     width: 100%;
-    text-align: center
+    text-align: center;
 }
 
 h2 {
@@ -54,7 +54,7 @@ body {
 }
 
 p {
-    font-size: medium;
+    font-size: large;
 }
 
 #inputText {
